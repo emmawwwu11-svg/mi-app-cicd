@@ -6,15 +6,33 @@ on:
       - main
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout código
       uses: actions/checkout@v3
 
-    - name: Build Docker
-      run: docker build -t mi-app .
+    - name: Autenticación GCP
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    - name: Test
-      run: echo "CI/CD funcionando"
+    - name: Configurar Docker
+      run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+    - name: Build imagen
+      run: |
+        docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mi-repo/mi-app .
+
+    - name: Push imagen
+      run: |
+        docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mi-repo/mi-app
+
+    - name: Deploy Cloud Run
+      run: |
+        gcloud run deploy mi-servicio \
+          --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mi-repo/mi-app \
+          --region ${{ secrets.GCP_REGION }} \
+          --platform managed \
+          --allow-unauthenticated
